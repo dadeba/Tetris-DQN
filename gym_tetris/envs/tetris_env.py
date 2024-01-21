@@ -71,12 +71,12 @@ class TetrisEnv(gym.Env):
         if done:
             reward -= 5
 
-        return np.array(self.game.board.get_possible_states()), reward, done, {}
+        return self.game.board.get_possible_states(), reward, done, {}
 
     def reset(self):
         """Starts a new game."""
         self.game = Game(Board(10, 20))
-        return np.array(self.game.board.get_possible_states())
+        return self.game.board.get_possible_states()
 
     def close(self):
         """Closes the window."""

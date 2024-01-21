@@ -12,27 +12,28 @@ LOG_DIR = os.path.join(os.path.dirname(__file__), 'logs')
 
 
 class ExperienceBuffer:
-    def __init__(self, buffer_size=20000):
+    def __init__(self, buffer_size=50000):
         self.buffer = []
         self.buffer_size = buffer_size
 
     def add(self, experience):
         if len(self.buffer) + len(experience) >= self.buffer_size:
             self.buffer[0:(len(experience) + len(self.buffer)) - self.buffer_size] = []
-        self.buffer.extend(experience)
+        self.buffer.append(experience)
 
     def sample(self, size):
         return random.sample(self.buffer, size)
 
 
 class QNetwork:
-    def __init__(self, state_size=9, discount=1, epsilon=1, epsilon_min=0.0001, epsilon_decay=9.9995):
+    def __init__(self, state_size=9, discount=0.9, epsilon=1.0, epsilon_min=0.0001, epsilon_decay=0.99995, weight_path=WEIGHT_PATH):
         self.state_size = state_size
         self.model = self._create_model()
         self.discount = discount
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
+        self.weight_path = weight_path
         self.experiences = ExperienceBuffer()
         self.tensorboard = tf.keras.callbacks.TensorBoard(log_dir=LOG_DIR,
                                                           histogram_freq=1000,
@@ -43,9 +44,13 @@ class QNetwork:
         """Returns a new model."""
 
         model = tf.keras.models.Sequential([
-            tf.keras.layers.Dense(64, input_dim=self.state_size, activation='relu'),
+            tf.keras.layers.Dense(32, input_dim=self.state_size, activation='relu'),
             tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(32, activation='relu'),
+            tf.keras.layers.Dense(64*2, activation='relu'),
+            tf.keras.layers.Dense(64*2, activation='relu'),
+            tf.keras.layers.Dense(64*2, activation='relu'),            
+            tf.keras.layers.Dense(32*2, activation='relu'),
+            tf.keras.layers.Dense(32, activation='relu'),            
             tf.keras.layers.Dense(1, activation='linear'),
         ])
 
@@ -58,7 +63,7 @@ class QNetwork:
 
         model.summary()
 
-        tf.keras.utils.plot_model(model, IMAGE_PATH, show_shapes=True)
+        #tf.keras.utils.plot_model(model, IMAGE_PATH, show_shapes=True)
 
         return model
 
@@ -123,17 +128,18 @@ class QNetwork:
 
     def load(self):
         """Load the weights."""
-        if Path(WEIGHT_PATH).is_file():
-            self.model.load_weights(WEIGHT_PATH)
+        if Path(self.weight_path).is_file():
+            print(self.weight_path)
+            self.model.load_weights(self.weight_path)
 
     def save(self):
         """Save the weights."""
-        if not os.path.exists(os.path.dirname(WEIGHT_PATH)):
-            os.makedirs(os.path.dirname(WEIGHT_PATH))
+        if not os.path.exists(os.path.dirname(self.weight_path)):
+            os.makedirs(os.path.dirname(self.weight_path))
+            
+        self.model.save_weights(self.weight_path)
 
-        self.model.save_weights(WEIGHT_PATH)
-
-    def learn(self, batch_size=512, epochs=1):
+    def learn(self, batch_size=512*2, epochs=1):
         """Let the model learn about its recent experiences to adjust its weights.
 
         Takes 512 random experiences from the experience buffer of the 20000 most recent steps.
@@ -165,5 +171,5 @@ class QNetwork:
             train_y.append(q)
 
         self.model.fit(np.array(train_x), np.array(train_y), batch_size=len(train_x), verbose=0,
-                       epochs=epochs, callbacks=[self.tensorboard])
+                       epochs=epochs) ##, callbacks=[self.tensorboard])
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
